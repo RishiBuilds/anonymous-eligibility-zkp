@@ -1,0 +1,43 @@
+{
+  "name": "anonymous-eligibility-zkp",
+  "version": "1.0.0",
+  "description": "Privacy-preserving eligibility verification using Groth16 ZK proofs and Poseidon Merkle trees",
+  "scripts": {
+    "compile": "hardhat compile",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
+    "node": "hardhat node",
+    "build:circuit": "node scripts/build_circuit.js",
+    "setup": "node scripts/trusted_setup.js",
+    "build:tree": "node scripts/build_tree.js",
+    "issuer:build": "node scripts/build_tree.js",
+    "generate:students": "node scripts/generate_students.js",
+    "frontend": "npm --prefix frontend run dev"
+  },
+  "keywords": [
+    "zkp",
+    "groth16",
+    "circom",
+    "poseidon",
+    "merkle-tree",
+    "privacy",
+    "blockchain",
+    "scholarship"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "hardhat": "^2.19.0"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0",
+    "circomlib": "^2.0.5",
+    "circomlibjs": "^0.1.7",
+    "csv-parse": "^5.5.0",
+    "csv-stringify": "^6.4.0",
+    "dotenv": "^16.3.1",
+    "ethers": "^6.9.0",
+    "snarkjs": "^0.7.4"
+  }
+}

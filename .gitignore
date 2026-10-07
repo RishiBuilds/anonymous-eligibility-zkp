@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+bin/
+
+# Environment secrets
+.env
+
+# Hardhat artifacts
+cache/
+artifacts/
+typechain-types/
+
+# Circuit build outputs 
+build/
+circuits/build/
+circuits/*.r1cs
+circuits/*.wasm
+circuits/*.sym
+circuits/*.zkey
+circuits/*.wtns
+circuits/*.json
+!circuits/verification_key.json
+
+# Powers of Tau ceremony files
+pot/
+*.ptau
+
+# Credential files (contain secrets!)
+credentials/
+*.credential.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Frontend build
+frontend/dist/
+frontend/build/
