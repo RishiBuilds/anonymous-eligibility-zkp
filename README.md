@@ -4,7 +4,7 @@
 
 **Prove you qualify. Keep your identity.**
 
-Anonymous scholarship eligibility verification on Ethereum using Groth16 zero-knowledge proofs and Poseidon Merkle trees.
+Anonymous scholarship eligibility verification on Ethereum, powered by Groth16 zero-knowledge proofs and Poseidon Merkle trees.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Circom](https://img.shields.io/badge/Circom-2.1.9-3fb950.svg)](https://docs.circom.io/)
@@ -21,45 +21,89 @@ Anonymous scholarship eligibility verification on Ethereum using Groth16 zero-kn
 
 A student should be able to show they meet scholarship criteria without handing over their transcript, finances, or birthdate.
 
-ChainProof makes that possible. A student generates a zero-knowledge proof in the browser showing they satisfy rules such as:
+ChainProof makes that possible. The student generates a zero-knowledge proof in the browser showing they satisfy rules such as:
 
-- CGPA at or above a minimum (e.g. 8.00)
+- CGPA at or above a minimum (for example 8.00)
 - Enrolled in a specific department
 - Tuition fee cleared
 - Born on or before a cutoff year
 
-The smart contract verifies the proof in constant time (about 485k gas), checks membership in the university's Merkle tree, blocks double claims with a nullifier, and stores only an anonymous verification receipt.
+The smart contract verifies the proof in constant time (about 485k gas), confirms membership in the university's Merkle tree, blocks double claims with a nullifier, and stores only an anonymous verification receipt.
 
 ---
 
 ## How It Works
 
+ChainProof has three participants and three phases.
+
+| Participant | Role |
+|---|---|
+| **Issuer** (university) | Commits to the list of eligible students and publishes the scholarship rules |
+| **Student** | Holds a private credential and proves eligibility locally in the browser |
+| **Registry contract** | Verifies the proof, enforces one claim per student, and records the result |
+
+### Protocol flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant I as Issuer
+    participant C as Registry Contract
+    participant S as Student Browser
+    participant V as Verifier
+
+    rect rgb(235, 245, 255)
+    Note over I,C: Phase 1 - Setup
+    I->>I: Generate a random secret for each eligible student
+    I->>I: Build a depth-16 Poseidon Merkle tree
+    I->>C: createScheme(scholarshipId, merkleRoot, criteria)
+    I-->>S: Send private credential file
+    end
+
+    rect rgb(240, 255, 240)
+    Note over S: Phase 2 - Prove (entirely client-side)
+    S->>S: Pre-check credential against the criteria
+    S->>S: Compute nullifier from secret
+    S->>S: Compute witness in WASM
+    S->>S: Generate Groth16 proof (8-12 s)
+    end
+
+    rect rgb(255, 245, 235)
+    Note over S,C: Phase 3 - Verify
+    S->>C: verifyAndRecord(proof, public signals)
+    C->>C: Root and criteria match the scheme
+    C->>C: recipient equals msg.sender
+    C->>C: Nullifier not already used
+    C->>C: Groth16 pairing check on BN254
+    C->>C: Mark nullifier spent, emit EligibilityVerified
+    V->>C: Query proofId
+    C-->>V: VALID (no personal data)
+    end
 ```
-   UNIVERSITY (ISSUER)                                  STUDENT (BROWSER)
-          |                                                    |
-  1. Build Poseidon Merkle tree of eligible students           |
-  2. Publish root on-chain (createScheme)                      |
-          |                                                    |
-          +------- credential file (STU001.credential.json) -->|
-                                                               |
-                                            3. Client-side pre-check
-                                            4. Web Worker generates Groth16 proof
-                                               (nullifier + witness computed locally)
-                                                               |
-                                            5. Submit verifyAndRecord()
-                                                               |
-                                                               v
-                                                     SMART CONTRACT
-                                          - Merkle root and criteria match scheme
-                                          - recipient == msg.sender
-                                          - nullifier unused
-                                          - Groth16 pairing check passes
-                                          - nullifier marked spent, event emitted
-                                                               |
-                                                               v
-                                                    VERIFIER (anyone)
-                                          Queries proofId on-chain: VALID
-```
+
+### What the circuit proves
+
+Everything below is proven in zero knowledge. The verifier learns that each statement is true and nothing else.
+
+| Statement | What it guarantees | Revealed |
+|---|---|---|
+| **Membership** | The student's credential is a leaf in the Merkle tree under the published root | Root only |
+| **Academic standing** | `cgpaScaled >= minCgpaScaled` | Nothing about the actual CGPA |
+| **Department** | `deptId` matches the scheme, or the scheme allows any department | Nothing about the actual department |
+| **Fee status** | `feePaid == 1` | Nothing about payment history |
+| **Age cutoff** | `birthYear <= maxBirthYear` | Nothing about the actual birth year |
+| **Uniqueness** | A deterministic nullifier is derived from the student's secret | The nullifier hash |
+| **Binding** | The proof is tied to one recipient address | The recipient address |
+
+Comparisons use bit-decomposition range checks (`Num2Bits`), so values cannot wrap around the field to fake a pass.
+
+### Why each piece exists
+
+- **Merkle tree.** One 32-byte root commits to up to 65,536 students. The student proves membership without revealing which leaf is theirs.
+- **Poseidon hash.** A hash designed for zero-knowledge circuits, with far fewer constraints than SHA-256, which keeps browser proving fast.
+- **Nullifier.** The same credential always produces the same nullifier, so a second claim is rejected, yet the nullifier reveals nothing about who the student is.
+- **Recipient binding.** The claiming address is a public input of the proof. A mempool observer cannot copy the proof and submit it from another wallet.
+- **Groth16.** Constant 256-byte proofs and cheap on-chain verification using Ethereum's native BN254 precompiles.
 
 ---
 
@@ -144,8 +188,8 @@ Open the Verifier tab from the success card. The page shows **ELIGIBILITY VERIFI
 | Attempt | Result |
 |---|---|
 | Submit the same credential twice | Reverts with `NullifierAlreadyUsed()` |
-| Upload an ineligible credential (e.g. CGPA 7.20) | Pre-check flags it; proving fails on constraint check |
-| Switch wallet after proving | UI detects mismatch and requires re-proving |
+| Upload an ineligible credential (for example CGPA 7.20) | Pre-check flags it; proving fails on constraint check |
+| Switch wallet after proving | UI detects the mismatch and requires re-proving |
 | Non-issuer opens Issuer Dashboard | Blocked: missing `ISSUER_ROLE` |
 
 ---
